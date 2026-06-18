@@ -32,6 +32,7 @@ fn print_usage(args: &[String]) {
     println!("Usage: ");
     println!("       ");
     println!("       $ {} [SOURCE] [OPTIONS]", exe_name);
+    println!("       $ {} apply [SOURCE] [OPTIONS]", exe_name);
     println!();
     println!("OPTIONS:");
     println!();
@@ -45,10 +46,17 @@ fn print_usage(args: &[String]) {
     );
     println!("       --quiet            Don't ask anything, just do it.");
     println!();
+    println!("SUBCOMMANDS:");
+    println!();
+    println!(
+        "       apply             Apply template to current directory (template must have mode = \"apply\")."
+    );
+    println!();
     println!("Examples:");
     println!();
     println!("       $ {} anvie/basic-rust", exe_name);
     println!("       $ {} anvie/basic-rust --dry-run", exe_name);
+    println!("       $ {} apply anvie/git-init", exe_name);
     println!();
 }
 
@@ -106,7 +114,15 @@ async fn main() {
         debug!("DRY RUN MODE");
     }
 
-    let source = &args[1];
+    let (source, apply_mode) = if args[1] == "apply" {
+        if args.len() < 3 {
+            eprintln!("Usage: reframe apply <source> [OPTIONS]");
+            std::process::exit(1);
+        }
+        (&args[2], true)
+    } else {
+        (&args[1], false)
+    };
     let branch = get_param_value(&args, "--branch", "-b").unwrap_or_else(|| "master".to_string());
 
     let reframe_work_path = env::temp_dir().join("reframe_work");
@@ -164,7 +180,7 @@ async fn main() {
 
     let params = extract_params(&args);
 
-    let mut rf = match Reframe::open(&source_path, &mut rl, dry_run, params) {
+    let mut rf = match Reframe::open(&source_path, &mut rl, dry_run, params, apply_mode) {
         Ok(rf) => rf,
         Err(e) => {
             eprintln!("Cannot open reframe source in tmp dir. {}", format!("{}", e).red());
@@ -180,7 +196,11 @@ async fn main() {
     match rf.generate(".", pre_out_name, quiet) {
         Ok(Some(out_name)) => {
             println!();
-            println!("  ✨ project generated at `{}`", out_name);
+            if apply_mode {
+                println!("  ✨ template applied to `{}`", out_name);
+            } else {
+                println!("  ✨ project generated at `{}`", out_name);
+            }
             println!("{}", "     Ready to roll! 😎".green());
 
             if let Some(text) = rf.config.project.finish_text {

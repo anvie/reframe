@@ -1,0 +1,21 @@
+[reframe]
+name = "Git Init"
+author = "reframe"
+min_version = "0.5.6"
+mode = "apply"
+
+[project]
+name = "git-setup"
+version = "1.0"
+finish_text = """
+  Run `cp _hooks/pre-commit .git/hooks/pre-commit` to install the pre-commit hook.
+"""
+
+[[post_generate]]
+make_executable = "_hooks/pre-commit"
+
+[[param]]
+author_name = { ask = "Your name?", default = "Developer" }
+
+[[param]]
+author_email = { ask = "Your email?", default = "dev@example.com" }

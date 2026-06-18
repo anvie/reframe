@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+#
+# Git pre-commit hook
+# Prevents commits containing:
+#   - Files larger than 1MB
+#   - Secrets / API keys / tokens
+#   - node_modules directory
+#   - .env files (except .env.example)
+#
+# Install: cp _hooks/pre-commit .git/hooks/pre-commit
+
+set -euo pipefail
+
+MAX_SIZE_KB=1024  # 1MB
+RED=$(tput setaf 1 2>/dev/null || echo '')
+BOLD=$(tput bold 2>/dev/null || echo '')
+RESET=$(tput sgr0 2>/dev/null || echo '')
+ERRORS=0
+
+echo "Running pre-commit checks..."
+
+# ── 1. Check for large files ──────────────────────────────────────────
+
+while IFS= read -r file; do
+    if [ -z "$file" ]; then continue; fi
+    # Skip files that were staged but deleted from disk
+    if [ ! -f "$file" ]; then continue; fi
+    size_kb=$(du -k "$file" 2>/dev/null | cut -f1) || continue
+    if [ "$size_kb" -gt "$MAX_SIZE_KB" ]; then
+        echo "${RED}${BOLD}[LARGE FILE]${RESET} $file (${size_kb} KB > ${MAX_SIZE_KB} KB)"
+        ERRORS=$((ERRORS + 1))
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# ── 2. Check for secrets / API keys / tokens ──────────────────────────
+
+# Patterns to scan for (case-insensitive)
+SECRET_PATTERNS=(
+    'API[_-]?KEY'
+    'SECRET[_-]?KEY'
+    'ACCESS[_-]?KEY'
+    'PRIVATE[_-]?KEY'
+    'CLIENT[_-]?SECRET'
+    'AUTH[_-]?TOKEN'
+    'PASSWORD'
+    'PASSWD'
+    'TOKEN'
+    'CREDENTIAL'
+    'BEGIN\s+(RSA|EC|DSA|OPENSSH)\s+PRIVATE\s+KEY'
+)
+
+# Build grep pattern: match lines with assignment-like syntax of secrets
+# e.g. API_KEY=... or "apiKey": "..." or api_key: "..."
+SECRET_REGEX='(API[_-]?KEY|SECRET[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|CLIENT[_-]?SECRET|AUTH[_-]?TOKEN)\s*[:=]\s*['\''"]?\S'
+
+while IFS= read -r file; do
+    if [ -z "$file" ]; then continue; fi
+    # Skip files that were staged but deleted from disk
+    if [ ! -f "$file" ]; then continue; fi
+    # Skip binary files
+    if file -b --mime-type "$file" | grep -qv '^text/'; then
+        continue
+    fi
+    # Scan for secret patterns
+    if matches=$(grep -HinE "$SECRET_REGEX" "$file" 2>/dev/null); then
+        echo "${RED}${BOLD}[SECRETS]${RESET} $file may contain secrets:"
+        echo "$matches" | while IFS= read -r line; do
+            echo "  $line"
+        done
+        ERRORS=$((ERRORS + 1))
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# ── 3. Check for node_modules ─────────────────────────────────────────
+
+if git diff --cached --name-only | grep -q 'node_modules/'; then
+    echo "${RED}${BOLD}[node_modules]${RESET} node_modules/ is being committed!"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# ── 4. Check for .env files (except .env.example) ─────────────────────
+
+while IFS= read -r file; do
+    if [ -z "$file" ]; then continue; fi
+    # Skip files that were staged but deleted from disk
+    if [ ! -f "$file" ]; then continue; fi
+    base=$(basename "$file")
+    if [[ "$base" =~ ^\.env ]] && [[ "$base" != ".env.example" ]]; then
+        echo "${RED}${BOLD}[ENV FILE]${RESET} $file is staged (use .env.example for templates)"
+        ERRORS=$((ERRORS + 1))
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# ── Result ────────────────────────────────────────────────────────────
+
+if [ "$ERRORS" -gt 0 ]; then
+    echo ""
+    echo "${RED}${BOLD}✗ Commit blocked — $ERRORS issue(s) found.${RESET}"
+    echo "  Use 'git commit --no-verify' to bypass (not recommended)."
+    exit 1
+fi
+
+echo "  ✓ All checks passed."
+exit 0

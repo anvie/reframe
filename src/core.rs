@@ -27,6 +27,7 @@ use std::{
 pub struct Config {
     pub reframe: ReframeConfig,
     pub project: ProjectConfig,
+    #[serde(default)]
     pub param: Vec<JsonValue>,
     #[serde(rename = "present", default = "Vec::new")]
     pub presents: Vec<Present>,
@@ -46,11 +47,27 @@ pub struct PostGenerateOp {
     pub make_executable: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum TemplateMode {
+    #[serde(rename = "generate")]
+    Generate,
+    #[serde(rename = "apply")]
+    Apply,
+}
+
+impl Default for TemplateMode {
+    fn default() -> Self {
+        TemplateMode::Generate
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ReframeConfig {
     pub name: String,
     pub author: String,
     pub min_version: String,
+    #[serde(default)]
+    pub mode: TemplateMode,
 }
 
 #[derive(Debug, Deserialize)]
@@ -209,6 +226,7 @@ pub struct Reframe<'a> {
     rl: &'a mut Editor<()>,
     path: PathBuf,
     dry_run: bool,
+    apply_mode: bool,
 }
 
 impl<'a> Reframe<'a> {
@@ -217,6 +235,7 @@ impl<'a> Reframe<'a> {
         rl: &'a mut Editor<()>,
         dry_run: bool,
         params: Vec<Param>,
+        apply_mode: bool,
     ) -> io::Result<Self> {
         let mut config = read_config(path.as_ref().join("Reframe.toml"))?;
 
@@ -227,6 +246,17 @@ impl<'a> Reframe<'a> {
                 format!(
                     "Reframe version min {} is required to use this source, please upgrade your Reframe.",
                     config.reframe.min_version
+                ),
+            ))?;
+        }
+
+        // validate apply mode eligibility
+        if apply_mode && config.reframe.mode != TemplateMode::Apply {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Template `{}` is not in apply mode. Add `mode = \"apply\"` to [reframe] section.",
+                    config.reframe.name
                 ),
             ))?;
         }
@@ -252,6 +282,7 @@ impl<'a> Reframe<'a> {
             rl,
             path: path.as_ref().to_path_buf(),
             dry_run,
+            apply_mode,
         })
     }
 
@@ -287,20 +318,34 @@ impl<'a> Reframe<'a> {
         out_name: Option<O>,
         quiet_mode: bool,
     ) -> io::Result<Option<String>> {
-        let out_dir = if self.dry_run {
+        let out_dir = if self.apply_mode {
+            // In apply mode, always overlay into current directory
+            PathBuf::from(".")
+        } else if self.dry_run {
             Path::new("/tmp").join(out_dir.as_ref())
         } else {
             out_dir.as_ref().to_path_buf()
         };
         let project_name = self.get_value_from_param("name").unwrap_or_else(|| {
-            self.input_read_string(
-                format!(
-                    "  ➢ {} ({}) : ",
-                    "Project name".bright_blue(),
-                    &self.config.project.name.yellow()
-                ),
-                self.config.project.name.to_owned(),
-            )
+            if self.apply_mode {
+                // In apply mode, default to current directory name
+                std::env::current_dir()
+                    .ok()
+                    .and_then(|p| {
+                        p.file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                    })
+                    .unwrap_or_else(|| self.config.project.name.to_owned())
+            } else {
+                self.input_read_string(
+                    format!(
+                        "  ➢ {} ({}) : ",
+                        "Project name".bright_blue(),
+                        &self.config.project.name.yellow()
+                    ),
+                    self.config.project.name.to_owned(),
+                )
+            }
         });
 
         if project_name != "" {
@@ -468,20 +513,24 @@ impl<'a> Reframe<'a> {
 
         self.params = final_params;
 
-        let out_dir = out_name
-            .as_ref()
-            .map(|a| out_dir.join(a))
-            .unwrap_or_else(|| {
-                out_dir.join(
-                    &self
-                        .config
-                        .project
-                        .variants
-                        .get("name_kebab_case")
-                        .as_ref()
-                        .unwrap(),
-                )
-            });
+        let out_dir = if !self.apply_mode {
+            out_name
+                .as_ref()
+                .map(|a| out_dir.join(a))
+                .unwrap_or_else(|| {
+                    out_dir.join(
+                        &self
+                            .config
+                            .project
+                            .variants
+                            .get("name_kebab_case")
+                            .as_ref()
+                            .unwrap(),
+                    )
+                })
+        } else {
+            out_dir
+        };
 
         // process finish_text
         debug!("processing finish text..");
@@ -494,21 +543,24 @@ impl<'a> Reframe<'a> {
         );
 
         // check is path already exists, and warn if any
-        if !quiet_mode && out_dir.exists() {
-            println!(
-                "  ➢ {} `{}` already exists, overwrite it?",
-                "Warning".bright_yellow(),
-                out_dir.display()
-            );
-            let mut rv = self.rl.readline("  ➢ [y/n] : ").map_err(map_err)?;
-            rv = rv.trim().to_string();
-            if rv != "y" {
-                return Ok(None);
+        // In apply mode, we overlay files in place, so keep the existing directory intact.
+        if !self.apply_mode {
+            if !quiet_mode && out_dir.exists() {
+                println!(
+                    "  ➢ {} `{}` already exists, overwrite it?",
+                    "Warning".bright_yellow(),
+                    out_dir.display()
+                );
+                let mut rv = self.rl.readline("  ➢ [y/n] : ").map_err(map_err)?;
+                rv = rv.trim().to_string();
+                if rv != "y" {
+                    return Ok(None);
+                }
             }
-        }
 
-        debug!("remove dir {}", &out_dir.display());
-        let _ = fs::remove_dir_all(&out_dir);
+            debug!("remove dir {}", &out_dir.display());
+            let _ = fs::remove_dir_all(&out_dir);
+        }
 
         self.copy_dir(self.path.as_path(), out_dir.as_ref())?;
 
@@ -975,6 +1027,7 @@ mod tests {
                 name: "My Reframe".to_string(),
                 author: "robin".to_string(),
                 min_version: "0.1.0".to_string(),
+                mode: TemplateMode::Generate,
             },
             project: ProjectConfig {
                 name: name.to_owned(),
