@@ -98,3 +98,59 @@ fn test_apply_mode_accepts_apply_template() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+#[test]
+fn test_post_generate_command_deserialize() {
+    let toml_str = r#"
+[reframe]
+name = "Test"
+author = "me"
+min_version = "0.1.0"
+
+[project]
+name = "Hi"
+version = "1.0"
+
+param = []
+
+[[post_generate]]
+make_executable = "_hooks/pre-commit"
+command = "cp _hooks/pre-commit .git/hooks/pre-commit"
+"#;
+    let config: Config = toml::from_str(toml_str).expect("should parse");
+    assert_eq!(config.post_generate.len(), 1);
+    assert_eq!(
+        config.post_generate[0].make_executable.as_deref(),
+        Some("_hooks/pre-commit")
+    );
+    assert_eq!(
+        config.post_generate[0].command.as_deref(),
+        Some("cp _hooks/pre-commit .git/hooks/pre-commit")
+    );
+}
+
+#[test]
+fn test_post_generate_command_optional() {
+    let toml_str = r#"
+[reframe]
+name = "Test"
+author = "me"
+min_version = "0.1.0"
+
+[project]
+name = "Hi"
+version = "1.0"
+
+param = []
+
+[[post_generate]]
+make_executable = "script.sh"
+"#;
+    let config: Config = toml::from_str(toml_str).expect("should parse");
+    assert_eq!(config.post_generate.len(), 1);
+    assert_eq!(
+        config.post_generate[0].make_executable.as_deref(),
+        Some("script.sh")
+    );
+    assert_eq!(config.post_generate[0].command, None);
+}

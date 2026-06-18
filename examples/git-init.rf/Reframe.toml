@@ -8,11 +8,12 @@ mode = "apply"
 name = "git-setup"
 version = "1.0"
 finish_text = """
-  Run `cp _hooks/pre-commit .git/hooks/pre-commit` to install the pre-commit hook.
+  Pre-commit hook installed. Run `git commit` to test it.
 """
 
 [[post_generate]]
 make_executable = "_hooks/pre-commit"
+command = "cp _hooks/pre-commit .git/hooks/pre-commit"
 
 [[param]]
 author_name = { ask = "Your name?", default = "Developer" }

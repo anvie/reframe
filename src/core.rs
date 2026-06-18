@@ -45,6 +45,7 @@ pub struct Present {
 #[derive(Debug, Deserialize)]
 pub struct PostGenerateOp {
     pub make_executable: Option<String>,
+    pub command: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -591,6 +592,20 @@ impl<'a> Reframe<'a> {
                             error!("Cannot chmod +x `{}`. {}", path.display(), e);
                         }
                     }
+                }
+            }
+            if let Some(cmd) = pg_op.command.as_ref() {
+                let cmd = Self::string_sub(cmd, &self.config, &self.params, &self.builtin_vars);
+                debug!("Running command: {} (in {})", cmd, out_dir.display());
+                let status = Command::new("sh")
+                    .arg("-c")
+                    .arg(&cmd)
+                    .current_dir(&out_dir)
+                    .status();
+                match status {
+                    Ok(s) if s.success() => debug!("Command succeeded: {}", cmd),
+                    Ok(s) => error!("Command exited with {}: {}", s, cmd),
+                    Err(e) => error!("Command failed: {}. {}", cmd, e),
                 }
             }
         }
