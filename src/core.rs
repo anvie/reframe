@@ -606,6 +606,15 @@ impl<'a> Reframe<'a> {
             }
         }
 
+        // Remove _hooks/ directory after apply — hooks were consumed by post_generate.
+        if self.apply_mode {
+            let hooks_dir = out_dir.join("_hooks");
+            if hooks_dir.exists() {
+                debug!("removing _hooks/ dir: {}", hooks_dir.display());
+                let _ = fs::remove_dir_all(&hooks_dir);
+            }
+        }
+
         debug!("done.");
 
         Ok(Some(format!("{}", out_dir.display())))
