@@ -994,7 +994,7 @@ impl<'a> Reframe<'a> {
                     .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("");
-                if dir_name == "node_modules" || dir_name == ".git" {
+                if dir_name == "node_modules" || dir_name == ".git" || dir_name == "dist" {
                     debug!("skipping directory: {}", path.display());
                     continue;
                 }
