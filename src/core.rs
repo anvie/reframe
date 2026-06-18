@@ -210,7 +210,7 @@ pub use make_case_variant;
 const EXCLUDED_EXTS: &[&str] = &[
     "png", "ico", "jpg", "jpeg", "avi", "gif", "mp4", "iso", "zip", "gz", "tar", "rar", "svg",
     "ttf", "woff", "woff2", "eot", "jar", "war", "mpg", "mpeg", "mp3", "m4v", "mkv", "docx",
-    "pptx", "pdf", "dmg", "wav", "webm", "m4a", "mov", "pack",
+    "pptx", "pdf", "dmg", "wav", "webm", "m4a", "mov", "pack", "wasm",
 ];
 
 lazy_static! {
@@ -858,17 +858,25 @@ impl<'a> Reframe<'a> {
 
     fn process_template<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         debug!("processing template: {}", path.as_ref().display());
+
+        let raw_bytes = fs::read(&path)
+            .unwrap_or_else(|_| panic!("cannot read: {}", path.as_ref().display()));
+
+        // Skip template processing entirely for binary (non-UTF-8) files.
+        // Running `from_utf8_lossy` + Handlebars on binary content produces
+        // garbage that chokes the template engine.
+        let text = match std::str::from_utf8(&raw_bytes) {
+            Ok(s) => s.to_owned(),
+            Err(_) => {
+                debug!("skipping binary file: {}", path.as_ref().display());
+                return Ok(());
+            }
+        };
+
         print!(".");
         io::stdout().flush().unwrap();
 
-        let rv: String = String::from_utf8_lossy(
-            fs::read(&path)
-                .unwrap_or_else(|_| panic!("cannot read: {}", path.as_ref().display()))
-                .as_slice(),
-        )
-        .to_string();
-
-        let rv = Self::process_template_str(rv, &self.config, &self.params, &self.builtin_vars);
+        let rv = Self::process_template_str(text, &self.config, &self.params, &self.builtin_vars);
 
         let out_path = format!("{}", path.as_ref().display());
 
