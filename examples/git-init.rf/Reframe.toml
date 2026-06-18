@@ -1,7 +1,7 @@
 [reframe]
 name = "Git Init"
 author = "reframe"
-min_version = "0.5.9"
+min_version = "0.5.10"
 mode = "apply"
 
 [project]
