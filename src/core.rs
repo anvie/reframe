@@ -873,20 +873,30 @@ impl<'a> Reframe<'a> {
             }
         };
 
-        print!(".");
-        io::stdout().flush().unwrap();
-
         let rv = Self::process_template_str(text, &self.config, &self.params, &self.builtin_vars);
 
         let out_path = format!("{}", path.as_ref().display());
 
-        let rv = Self::process_with_handlebars(
+        let rv = match Self::process_with_handlebars(
             &out_path,
             rv,
             &self.config,
             &self.params,
             &self.builtin_vars,
-        )?;
+        ) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "warning: skipping template processing for `{}`: {}",
+                    path.as_ref().display(),
+                    e
+                );
+                return Ok(());
+            }
+        };
+
+        print!(".");
+        io::stdout().flush().unwrap();
 
         let _ = fs::remove_file(&out_path);
 
