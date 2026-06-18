@@ -262,10 +262,6 @@ impl<'a> Reframe<'a> {
             ))?;
         }
 
-        if let Some(dirs) = config.project.ignore_dirs.as_mut() {
-            dirs.push(".git".to_string());
-        }
-
         let mut builtin_vars = vec![];
         builtin_vars.push(BuiltinVar {
             key: "year",
@@ -993,6 +989,21 @@ impl<'a> Reframe<'a> {
             }
 
             if path.is_dir() {
+                // Skip well-known directories that never contain templates
+                let dir_name = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("");
+                if dir_name == "node_modules" || dir_name == ".git" {
+                    debug!("skipping directory: {}", path.display());
+                    continue;
+                }
+                if let Some(ref dirs) = self.config.project.ignore_dirs {
+                    if dirs.iter().any(|d| d == dir_name) {
+                        debug!("skipping directory (ignore_dirs): {}", path.display());
+                        continue;
+                    }
+                }
                 self.process_dir(&path)?;
             } else {
                 if let Some(ext) = path.extension() {
