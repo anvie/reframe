@@ -32,7 +32,7 @@ $ cargo install reframe
 
 ### Download Binary
 
-Download a pre-built binary for your platform from the [releases page](https://github.com/Ansvia/reframe/releases).
+Download a pre-built binary for your platform from the [releases page](https://github.com/anvie/reframe/releases).
 
 ---
 
