@@ -18,5 +18,6 @@
 * [anvie/simple-nft-site](https://github.com/anvie/simple-nft-site.rf) - Simple NFT site build with Next.js + Tailwind.
 * [anvie/web-profile](https://github.com/anvie/web-profile.rf) - Simple static web profile.
 * [anvie/t3app](https://github.com/anvie/t3app.rf) - T3 app based app with additional utilities and tailwind linter configuration.
+* [anvie/git-init](https://github.com/anvie/git-init.rf) - Apply-mode template that installs a pre-commit git hook into an existing repository.
 
 **NOTES**: PRs are welcome to add your sources here.
