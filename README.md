@@ -1,22 +1,21 @@
-Reframe
-==========
+# Reframe
 
-[![Crates](https://img.shields.io/crates/v/reframe.svg)](https://crates.io/crates/reframe) [![Build Status](https://travis-ci.org/Ansvia/reframe.svg?branch=master)](https://travis-ci.org/Ansvia/reframe)
+[![Crates](https://img.shields.io/crates/v/reframe.svg)](https://crates.io/crates/reframe)
+[![Build Status](https://travis-ci.org/Ansvia/reframe.svg?branch=master)](https://travis-ci.org/Ansvia/reframe)
 
 > Because *"don't repeat yourself"*
 
-Reframe is a lightweight project scaffolding tool enables rapid setup of new projects by generating the necessary directories, files, and code templates, streamlining the development process from the outset.
+Reframe is a lightweight project scaffolding tool that enables rapid setup of new projects by generating the necessary directories, files, and code templates. It streamlines the development process from the outset.
 
 ![Reframe Demo](img/reframe.gif?raw=true)
 
-For detail usage please check [Reframe Documentation](DOCS.md).
+For detailed usage, see the [Reframe Documentation](DOCS.md).
 
-Install
-----------
+---
 
-### Homebrew
+## Install
 
-For Mac with homebrew:
+### Homebrew (macOS)
 
 ```bash
 brew tap ansvia/tools
@@ -25,31 +24,37 @@ brew install reframe
 
 ### Cargo
 
-Or, if you have Cargo, type:
+If you have Rust installed:
 
-    $ cargo install reframe
+```
+$ cargo install reframe
+```
 
-### Download binary
+### Download Binary
 
-Download binary for your specific platform from [release page](https://github.com/Ansvia/reframe/releases).
+Download a pre-built binary for your platform from the [releases page](https://github.com/Ansvia/reframe/releases).
 
+---
 
-Usage
---------
+## Usage
 
-    $ reframe [SOURCE]
+```
+$ reframe [SOURCE]
+```
 
-Example
----------
+### Example
 
-    $ reframe anvie/basic-rust
+```
+$ reframe anvie/basic-rust
+```
 
-`anvie/basic-rust` is refering to my github repo: [basic-rust.rf](https://github.com/anvie/basic-rust.rf).
+`anvie/basic-rust` refers to the GitHub repository [basic-rust.rf](https://github.com/anvie/basic-rust.rf).
 
-Build Source
-----------------
+---
 
-To create Reframe source is super duper easy, all you needs is write `Reframe.toml` at the root project dir, example:
+## Creating a Reframe Source
+
+Creating a Reframe source is straightforward — write a `Reframe.toml` at the root of your template project:
 
 ```toml
 [project]
@@ -57,74 +62,93 @@ name = "Hello World"
 version = "1.0"
 
 [[param]]
-with_serde = { ask = "Dengan serde?", default = false }
+with_serde = { ask = "With serde?", default = false }
 
 [[param]]
-serde_version = { ask = "Versi serde?", default = "1.0", if="with_serde" }
+serde_version = { ask = "Serde version?", default = "1.0", if = "with_serde" }
 
 [[param]]
-# without default value means required
+# No default value means required
 author_name = { ask = "Author name?" }
 
 [[param]]
 author_email = { ask = "Author email?" }
 ```
 
-Every string type param will have case variants automagically, eg: `author_name` will have: `author_name_lowercase`, `author_name_snake_case`, `author_name_kebab_case`.
+Every string parameter automatically gets case variants, e.g. `author_name` yields:
+`author_name_lowercase`, `author_name_snake_case`, `author_name_kebab_case`, and more.
 
-So when you need to get project name with snake case, write: $name_snake_case$.
+When you need the project name in snake case, write `$name_snake_case$`.
 
-When you done, you can test using `reframe [YOUR-WORKING-TEMPLATE-DIR]`,
-if all is ok, push the project to your github repo with additional postfix `.rf` at the project name, eg: if your repo name is `unicorn` then you must push with name `unicorn.rf`, and finally you can use anywhere by simply typing:
+Test your template locally:
 
-    $ reframe [MY-GITHUB-USERNAME]/[MY-TEMPLATE]
+```
+$ reframe /path/to/your/template
+```
 
-Example:
+When ready, push the repository to GitHub with a `.rf` suffix on the repo name. For example, if your repo is named `unicorn`, name the remote repository `unicorn.rf`. Then use it anywhere:
 
-    $ reframe agus/unicorn
+```
+$ reframe your-username/unicorn
+```
 
-For detail usage please check [Reframe Documentation](DOCS.md).
+For detailed usage, see the [Reframe Documentation](DOCS.md).
 
-Reframe source examples:
-* [anvie/basic-rust.rf](https://github.com/anvie/basic-rust.rf).
-* [anvie/hello-world-py.rf](https://github.com/anvie/hello-world-py.rf)
+### Reframe Source Examples
 
-Supported case variants:
+- [anvie/basic-rust.rf](https://github.com/anvie/basic-rust.rf)
+- [anvie/hello-world-py.rf](https://github.com/anvie/hello-world-py.rf)
 
-* `*_lower_case` -> my cool app
-* `*_snake_case` -> my_cool_app
-* `*_kebab_case` -> my-cool-app
-* `*_shout_snake_case` -> MY_COOL_APP
-* `*_upper_case` -> MY COOL APP
-* `*_camel_case` -> myCoolApp
-* `*_pascal_case` -> MyCoolApp
+---
 
-You can also use builtin variables:
+## Supported Case Variants
 
-* `year` -> Print current year, eg: 2019.
-* `month_name` -> Print current month, eg: July
+| Variant | Example Input | Output |
+|---|---|---|
+| `*_lower_case` | my cool app | my cool app |
+| `*_snake_case` | my cool app | my_cool_app |
+| `*_kebab_case` | my cool app | my-cool-app |
+| `*_shout_snake_case` | my cool app | MY_COOL_APP |
+| `*_upper_case` | my cool app | MY COOL APP |
+| `*_camel_case` | my cool app | myCoolApp |
+| `*_pascal_case` | my cool app | MyCoolApp |
 
+### Built-in Variables
 
-Templating
-------------
+- `$year$` — Current year (e.g. 2026)
+- `$month_name$` — Current month name (e.g. June)
 
-Reframe also support templating engine for manipulating code use Handlebars syntax, example:
+---
 
-```javascript
+## Templating
+
+Reframe supports Handlebars templating inside generated files for conditional logic:
+
+```handlebars
 {{#if with_jwt}}
 const jwt = require('jsonwebtoken');
 {{/if}}
 ```
 
-Available sources:
------------------------
+---
 
-* [anvie/basic-rust-cli.rf](https://github.com/anvie/basic-rust-cli.rf) - Basic CLI application.
-* [anvie/rust-grpc.rf](https://github.com/anvie/rust-grpc.rf) - Rust gRPC application.
+## Recent Updates (v0.5.12)
 
-For more sources see [SOURCES](SOURCES.md).
+- **Automatic cleanup**: `_hooks/` directory is removed after a successful `apply`.
+- **Smarter directory skipping**: `dist/` is now skipped alongside `node_modules/` and `.git` during template processing.
+- **Binary file handling**: Binary files are automatically skipped during template processing.
+- **Graceful error recovery**: Files that cause Handlebars template errors are skipped gracefully instead of aborting.
 
-You can also list available sources by typing:
+---
+
+## Available Sources
+
+- [anvie/basic-rust-cli.rf](https://github.com/anvie/basic-rust-cli.rf) — Basic CLI application.
+- [anvie/rust-grpc.rf](https://github.com/anvie/rust-grpc.rf) — Rust gRPC application.
+
+For more sources, see [SOURCES](SOURCES.md).
+
+List available sources from the command line:
 
 ```bash
 reframe --list
