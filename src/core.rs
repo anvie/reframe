@@ -709,8 +709,23 @@ impl<'a> Reframe<'a> {
                 fs::create_dir_all(&dst)?;
                 self.copy_dir(&path, &dst)?;
             } else {
-                let file_name = tail_name;
-                let dst = dst.as_ref().join(file_name);
+                // In apply mode, skip the template's own README.md —
+                // it documents the template, not the target project.
+                if self.apply_mode && tail_name == "README.md" {
+                    debug!("skipping `{}` in apply mode", &path.display());
+                    continue;
+                }
+
+                // Handle *.template.* → *.* renaming (e.g. README.template.md → README.md)
+                let file_name = if RE_TEMPLATE_EXT.is_match(tail_name) {
+                    let new_name = RE_TEMPLATE_EXT.replace(tail_name, "$1$2").into_owned();
+                    debug!("renaming `{}` to `{}`", tail_name, new_name);
+                    new_name
+                } else {
+                    tail_name.to_string()
+                };
+
+                let dst = dst.as_ref().join(&file_name);
                 trace!("copy: {} -> {}", &path.display(), &dst.display());
                 fs::copy(&path, &dst)?;
             }
