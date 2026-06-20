@@ -21,6 +21,7 @@ use rustyline::Editor;
 
 use std::{
     env,
+    io::IsTerminal,
     path::{Path, PathBuf},
 };
 
@@ -38,13 +39,18 @@ fn print_usage(args: &[String]) {
     println!();
     println!("       -L,--list          List available sources.");
     println!("       --dry-run          Test only, don't touch disk.");
-    println!("       -P:[key]=[value]   Preset parameters.");
+    println!("       -Pkey=value        Preset parameters (short form).");
+    println!("       --param key=value  Preset parameters (long form).");
     println!("       -b,--branch        Select branch to use. Default: master");
     println!("       ");
     println!(
         "       --out              Custom output dir name (default: project name in kebab case)."
     );
     println!("       --quiet            Don't ask anything, just do it.");
+    println!();
+    println!("ENVIRONMENT:");
+    println!();
+    println!("       REFRAME_PARAM_<key>=<value>   Set parameters via env vars.");
     println!();
     println!("SUBCOMMANDS:");
     println!();
@@ -62,14 +68,39 @@ fn print_usage(args: &[String]) {
 
 // extract user's arguments to params
 fn extract_params(args: &[String]) -> Vec<Param> {
-    args.iter()
-        .map(|a| a.trim())
-        .filter(|a| a.starts_with("-P"))
-        .map(|a| {
-            let s = a.split("=").collect::<Vec<&str>>();
-            Param::new(s[0].chars().skip(3).collect::<String>(), s[1])
-        })
-        .collect::<Vec<Param>>()
+    let mut params = Vec::new();
+
+    // 1. Load from environment variables: REFRAME_PARAM_key=value
+    for (key, val) in env::vars() {
+        if let Some(k) = key.strip_prefix("REFRAME_PARAM_") {
+            params.push(Param::new(k.to_lowercase(), val));
+        }
+    }
+
+    // 2. Load from CLI args: -Pkey=value or --param key=value
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].trim();
+        if a.starts_with("-P") {
+            if let Some(eq) = a.find('=') {
+                let key = a[2..eq].to_string();
+                let val = a[eq + 1..].to_string();
+                params.push(Param::new(key, val));
+            }
+        } else if a == "--param" {
+            if let Some(next) = args.get(i + 1) {
+                if let Some(eq) = next.find('=') {
+                    let key = next[..eq].to_string();
+                    let val = next[eq + 1..].to_string();
+                    params.push(Param::new(key, val));
+                }
+                i += 1; // skip the value
+            }
+        }
+        i += 1;
+    }
+
+    params
 }
 
 #[tokio::main]
@@ -77,19 +108,23 @@ async fn main() {
     env_logger::init();
 
     let args: Vec<String> = env::args().collect();
+    let non_interactive = !std::io::stdin().is_terminal();
+    let quiet = args.contains(&"--quiet".to_string()) || non_interactive;
 
     if args.contains(&"--version".to_string()) {
         println!(" Reframe {}", env!("CARGO_PKG_VERSION"));
         return;
     }
 
-    println!();
-    println!(" Reframe {}", env!("CARGO_PKG_VERSION"));
-    println!(" project generator tool");
-    println!(" by: Robin Syihab <r@ansvia.com>");
-    println!(" Twitter: @anvie");
-    println!(" ---------------------------");
-    println!();
+    if !quiet {
+        println!();
+        println!(" Reframe {}", env!("CARGO_PKG_VERSION"));
+        println!(" project generator tool");
+        println!(" by: Robin Syihab <r@ansvia.com>");
+        println!(" Twitter: @anvie");
+        println!(" ---------------------------");
+        println!();
+    }
 
     if args.len() < 2 || args[1] == "--help" {
         print_usage(&args);
@@ -129,10 +164,12 @@ async fn main() {
     let source_path = if !Path::new(&source).exists() {
         debug!("source not found in local: {}", source);
         debug!("trying get from github.com/{} ...", source);
-        if branch != "master" {
-            println!(" Downloading from repo `{}` branch `{}`...", source, branch);
-        }else{
-            println!(" Downloading from repo `{}`...", source);
+        if !quiet {
+            if branch != "master" {
+                println!(" Downloading from repo `{}` branch `{}`...", source, branch);
+            } else {
+                println!(" Downloading from repo `{}`...", source);
+            }
         }
         let url = format!(
             "https://github.com/{}.rf/archive/{}.zip?nocache={}",
@@ -158,7 +195,7 @@ async fn main() {
 
         if _path.exists() {
             _path
-        }else{
+        } else {
             // change -master with -main as the default branch
             reframe_work_path.join(format!(
                 "{}.rf-main",
@@ -183,15 +220,16 @@ async fn main() {
     let mut rf = match Reframe::open(&source_path, &mut rl, dry_run, params, apply_mode) {
         Ok(rf) => rf,
         Err(e) => {
-            eprintln!("Cannot open reframe source in tmp dir. {}", format!("{}", e).red());
+            eprintln!(
+                "Cannot open reframe source in tmp dir. {}",
+                format!("{}", e).red()
+            );
             std::process::exit(2);
         }
     };
 
     // get custom pre-out-name if any
     let pre_out_name: Option<String> = get_param_value(&args, "--out", "");
-
-    let quiet = args.contains(&"--quiet".to_string());
 
     match rf.generate(".", pre_out_name, quiet) {
         Ok(Some(out_name)) => {
@@ -220,18 +258,15 @@ async fn main() {
     rl.save_history(&history_path).expect("cannot save history");
 }
 
-fn get_param_value(args: &Vec<String>, name: &str, short_name: &str ) -> Option<String> {
-    args
-        .iter()
+fn get_param_value(args: &Vec<String>, name: &str, short_name: &str) -> Option<String> {
+    args.iter()
         .map(|a| a.trim())
-        .filter(|a| {
-            a.starts_with(name) || (short_name != "" && a.starts_with(short_name))
-        })
+        .filter(|a| a.starts_with(name) || (short_name != "" && a.starts_with(short_name)))
         .map(|a| {
             let s = a.split("=").collect::<Vec<&str>>();
             if s.len() == 2 {
                 Some(s[1].to_string())
-            }else{
+            } else {
                 None
             }
         })

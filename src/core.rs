@@ -328,10 +328,7 @@ impl<'a> Reframe<'a> {
                 // In apply mode, default to current directory name
                 std::env::current_dir()
                     .ok()
-                    .and_then(|p| {
-                        p.file_name()
-                            .map(|n| n.to_string_lossy().to_string())
-                    })
+                    .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
                     .unwrap_or_else(|| self.config.project.name.to_owned())
             } else {
                 self.input_read_string(
@@ -364,13 +361,17 @@ impl<'a> Reframe<'a> {
         );
 
         let version = self.get_value_from_param("version").unwrap_or_else(|| {
-            self.rl
-                .readline(&format!(
-                    "  ➢ {} ({}) : ",
-                    "Version".bright_blue(),
-                    &self.config.project.version.yellow()
-                ))
-                .unwrap_or_else(|_| self.config.project.version.to_owned())
+            if !quiet_mode {
+                self.rl
+                    .readline(&format!(
+                        "  ➢ {} ({}) : ",
+                        "Version".bright_blue(),
+                        &self.config.project.version.yellow()
+                    ))
+                    .unwrap_or_else(|_| self.config.project.version.to_owned())
+            } else {
+                self.config.project.version.to_owned()
+            }
         });
 
         if version != "" {
@@ -864,8 +865,8 @@ impl<'a> Reframe<'a> {
     fn process_template<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         debug!("processing template: {}", path.as_ref().display());
 
-        let raw_bytes = fs::read(&path)
-            .unwrap_or_else(|_| panic!("cannot read: {}", path.as_ref().display()));
+        let raw_bytes =
+            fs::read(&path).unwrap_or_else(|_| panic!("cannot read: {}", path.as_ref().display()));
 
         // Skip template processing entirely for binary (non-UTF-8) files.
         // Running `from_utf8_lossy` + Handlebars on binary content produces
@@ -999,10 +1000,7 @@ impl<'a> Reframe<'a> {
 
             if path.is_dir() {
                 // Skip well-known directories that never contain templates
-                let dir_name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("");
+                let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 if dir_name == "node_modules" || dir_name == ".git" || dir_name == "dist" {
                     debug!("skipping directory: {}", path.display());
                     continue;
