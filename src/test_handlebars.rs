@@ -1,8 +1,4 @@
-
-
 use crate::core::*;
-
-
 
 fn build_config(name: &str) -> Config {
     Config {
@@ -163,5 +159,3 @@ function doSomething(){
     .unwrap();
     assert_eq!(output, expected4);
 }
-
-

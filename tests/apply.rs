@@ -63,11 +63,7 @@ fn test_template_mode_deserialize_missing_defaults_to_generate() {
 fn test_apply_mode_rejects_non_apply_template() {
     let tmp = std::env::temp_dir().join("reframe_test_apply_reject");
     let _ = std::fs::create_dir_all(&tmp);
-    std::fs::write(
-        tmp.join("Reframe.toml"),
-        toml_with_mode("generate"),
-    )
-    .expect("write");
+    std::fs::write(tmp.join("Reframe.toml"), toml_with_mode("generate")).expect("write");
 
     let mut rl = rustyline::Editor::<()>::new().expect("editor");
     let result = Reframe::open(&tmp, &mut rl, false, vec![], true);
@@ -86,11 +82,7 @@ fn test_apply_mode_rejects_non_apply_template() {
 fn test_apply_mode_accepts_apply_template() {
     let tmp = std::env::temp_dir().join("reframe_test_apply_accept");
     let _ = std::fs::create_dir_all(&tmp);
-    std::fs::write(
-        tmp.join("Reframe.toml"),
-        toml_with_mode("apply"),
-    )
-    .expect("write");
+    std::fs::write(tmp.join("Reframe.toml"), toml_with_mode("apply")).expect("write");
 
     let mut rl = rustyline::Editor::<()>::new().expect("editor");
     let result = Reframe::open(&tmp, &mut rl, false, vec![], true);
