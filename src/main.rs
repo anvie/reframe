@@ -3,6 +3,7 @@ extern crate toml;
 extern crate rustyline;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_yaml;
 #[macro_use]
 extern crate log;
 extern crate chrono;
@@ -47,6 +48,7 @@ fn print_usage(args: &[String]) {
         "       --out              Custom output dir name (default: project name in kebab case)."
     );
     println!("       --quiet            Don't ask anything, just do it.");
+    println!("       --yaml <path>      Load parameters from YAML file.");
     println!();
     println!("ENVIRONMENT:");
     println!();
@@ -100,6 +102,34 @@ fn extract_params(args: &[String]) -> Vec<Param> {
         i += 1;
     }
 
+    params
+}
+
+/// Load parameters from a YAML file (flat key-value mapping).
+fn load_yaml_params(yaml_path: &str) -> Vec<Param> {
+    use std::fs;
+
+    let content = fs::read_to_string(yaml_path)
+        .unwrap_or_else(|e| panic!("Cannot read YAML file `{}`: {}", yaml_path, e));
+    let value: serde_yaml::Value = serde_yaml::from_str(&content)
+        .unwrap_or_else(|e| panic!("Cannot parse YAML file `{}`: {}", yaml_path, e));
+
+    let mut params = Vec::new();
+    if let serde_yaml::Value::Mapping(map) = value {
+        for (k, v) in map {
+            let key = match k.as_str() {
+                Some(k) => k.to_string(),
+                None => continue,
+            };
+            let val = match v {
+                serde_yaml::Value::String(s) => s,
+                serde_yaml::Value::Number(n) => n.to_string(),
+                serde_yaml::Value::Bool(b) => b.to_string(),
+                _ => continue,
+            };
+            params.push(Param::new(key, val));
+        }
+    }
     params
 }
 
@@ -215,7 +245,26 @@ async fn main() {
         debug!("no history");
     }
 
-    let params = extract_params(&args);
+    // 1. Load from env vars and CLI flags (highest priority)
+    let mut params = extract_params(&args);
+
+    // 2. Load from YAML file (lowest priority — env/CLI override YAML)
+    {
+        let mut i = 0;
+        while i < args.len() {
+            let a = args[i].trim();
+            if a == "--yaml" {
+                if let Some(next) = args.get(i + 1) {
+                    params.extend(load_yaml_params(next));
+                    i += 1;
+                }
+            } else if a.starts_with("--yaml=") {
+                let path = &a[7..];
+                params.extend(load_yaml_params(path));
+            }
+            i += 1;
+        }
+    }
 
     let mut rf = match Reframe::open(&source_path, &mut rl, dry_run, params, apply_mode) {
         Ok(rf) => rf,

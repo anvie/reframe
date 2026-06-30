@@ -31,3 +31,4 @@ chrono = "0.4"
 itertools = "0.10"
 tokio = { version = "1.20", features=["rt-multi-thread", "macros"] }
 handlebars = "4.3"
+serde_yaml = "0.9"
