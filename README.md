@@ -50,6 +50,32 @@ $ reframe anvie/basic-rust
 
 `anvie/basic-rust` refers to the GitHub repository [basic-rust.rf](https://github.com/anvie/basic-rust.rf).
 
+### Non-Interactive Usage
+
+For CI/CD pipelines, agentic workflows, or any automation scenario, supply parameters via a YAML file with `--yaml`:
+
+```bash
+$ reframe anvie/basic-rust --yaml config.yml
+```
+
+Contents of `config.yml`:
+
+```yaml
+name: my-project
+version: 0.1.0
+author_name: John Doe
+author_email: john@example.com
+```
+
+Priority order (highest to lowest):
+
+1. **CLI flags** (`-Pkey=value`, `--param key=value`)
+2. **Environment variables** (`REFRAME_PARAM_key=value`)
+3. **YAML file** (`--yaml <path>`)
+4. **Template defaults** from `Reframe.toml`
+
+This means CLI flags and env vars always override values from a YAML file, making it safe to use a shared config and adjust specific parameters per run.
+
 ---
 
 ## Creating a Reframe Source
