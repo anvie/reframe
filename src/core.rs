@@ -19,7 +19,7 @@ use std::{
     fmt::Display,
     fs,
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
 };
 
@@ -69,6 +69,8 @@ pub struct ReframeConfig {
     pub min_version: String,
     #[serde(default)]
     pub mode: TemplateMode,
+    #[serde(default = "Vec::new")]
+    pub cleanup: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,6 +92,25 @@ fn read_config<P: AsRef<Path>>(path: P) -> io::Result<Config> {
     let f = fs::read(path)?;
     let rv = String::from_utf8_lossy(f.as_slice());
     toml::from_str(&rv).map_err(map_err)
+}
+
+fn validate_cleanup_path(path: &str) -> io::Result<()> {
+    let path = Path::new(path);
+    if path.as_os_str().is_empty() || path.is_absolute() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "cleanup paths must be non-empty relative paths",
+        ));
+    }
+
+    if path.components().all(|component| matches!(component, Component::Normal(_))) {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "cleanup paths may only contain normal path components",
+        ))
+    }
 }
 
 fn get_string(o: &JsonValue, key: &'static str, field: &str) -> String {
@@ -239,6 +260,9 @@ impl<'a> Reframe<'a> {
         apply_mode: bool,
     ) -> io::Result<Self> {
         let mut config = read_config(path.as_ref().join("Reframe.toml"))?;
+        for cleanup_path in &config.reframe.cleanup {
+            validate_cleanup_path(cleanup_path)?;
+        }
 
         // check min version
         if util::compare_version(&config.reframe.min_version, env!("CARGO_PKG_VERSION")) < 0 {
@@ -607,12 +631,19 @@ impl<'a> Reframe<'a> {
             }
         }
 
-        // Remove _hooks/ directory after apply — hooks were consumed by post_generate.
-        if self.apply_mode {
-            let hooks_dir = out_dir.join("_hooks");
-            if hooks_dir.exists() {
-                debug!("removing _hooks/ dir: {}", hooks_dir.display());
-                let _ = fs::remove_dir_all(&hooks_dir);
+        for cleanup_path in &self.config.reframe.cleanup {
+            let path = out_dir.join(cleanup_path);
+            match fs::symlink_metadata(&path) {
+                Ok(metadata) if metadata.file_type().is_dir() => {
+                    debug!("removing cleanup directory: {}", path.display());
+                    fs::remove_dir_all(&path)?;
+                }
+                Ok(_) => {
+                    debug!("removing cleanup file: {}", path.display());
+                    fs::remove_file(&path)?;
+                }
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
             }
         }
 
@@ -1094,6 +1125,7 @@ mod tests {
                 author: "robin".to_string(),
                 min_version: "0.1.0".to_string(),
                 mode: TemplateMode::Generate,
+                cleanup: vec![],
             },
             project: ProjectConfig {
                 name: name.to_owned(),

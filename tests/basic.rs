@@ -8,6 +8,7 @@ fn build_config(name: &str) -> Config {
             author: "robin".to_string(),
             min_version: "0.1.0".to_string(),
             mode: TemplateMode::Generate,
+            cleanup: vec![],
         },
         project: ProjectConfig {
             name: name.to_owned(),

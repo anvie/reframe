@@ -4,6 +4,8 @@ author = "reframe"
 min_version = "0.5.12"
 mode = "apply"
 
+cleanup = ["_git", "_hooks"]
+
 [project]
 name = "git-setup"
 version = "1.0"
